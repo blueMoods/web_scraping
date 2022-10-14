@@ -1,44 +1,57 @@
 # python2
-import sys
-import argparse
-import urllib2
+# -*- coding: utf-8 -*
 
-def download(url, num_retries = 2, user_agent="BlueMoods"):
-    print "Downloading:", url, "..."
+import re
+import itertools
+import urlparse
+from download import download
 
-    # Set agent
-    # some web will reject the default agent: Python-urllib/2.7
-    headers = {"User-agent": user_agent}
-    request = urllib2.Request(url, headers=headers)
 
-    try:
-        html = urllib2.urlopen(request).read()
-    except urllib2.URLError as e:
-        print "download error: ", e.reason
-        html = None
-        if num_retries > 0:
-            # 5xx HTTP errors means that the error is happened on server
-            # Retry it
-            if hasattr(e, "code") and 500 <= e.code < 600:
-                return download(url, num_retries -1)
-    return html
+# 网站地图爬虫
+# 实测：很多网站没有 /sitemap.xml 页面。
+def crawl_sitmap(url = "https://translate.google.com/sitemap.xml"):
+    sitemap = download(url)
+    links = re.findall("<loc>(.*?)</loc>", sitemap)
+    for link in links:
+        html = download(link)
 
-class ArgumentParserNotExit(argparse.ArgumentParser):
-    def error(self, message):
-        self.print_usage(sys.stderr)
-        raise ValueError('%s: error: %s\n'.format(self.prog, message))
 
-def parse_args():
-    parser = ArgumentParserNotExit()
-    parser.add_argument("--url", "-u", type=str, default="http://httpstat.us/500",
-                        help="The URL you want to crawling.")
-    args = parser.parse_args()
-    return args.url
+# ID 遍历爬虫
+# 实测：大部分网站没有 /view 目录。已发现有该目录的网站，id 是很长的 16 进制串
+# 例如：http://dts-sync-data.cdn.bcebos.com/wenku/flow/360sitemap/360_sitemap_2412.xml
+def crawl_id(url = "https://wenku.baidu.com"):
+    max_errors = 5
+    current_errors = 0
+    for page in itertools.count(1):
+        url_id = "%s/view/%d" %(url, page)
+        html = download(url_id)
+        if html is None:
+            current_errors += 1
+            if current_errors == max_errors:
+                break
+        else:
+            current_errors = 0
 
-def main():
-    url = parse_args()
-    html = download(url)
-    # print html
+# ID 链接爬虫
+# 实测：
+def crawl_link(seed_url = "http://home.ustc.edu.cn/~baohd/", link_regex = ".*2021.*"):
+    crawl_queue = [seed_url]
 
-if __name__ == '__main__':
-    main()
+    # keep track which URL's have been seen before
+    seen = set(crawl_queue)
+    while crawl_queue:
+        url = crawl_queue.pop()
+        html = download(url)
+        # print html
+        for link in get_links(html):
+            if re.match(link_regex, link):
+                # form absolute link
+                link = urlparse.urljoin(seed_url, link)
+                # check if have already seen this url
+                if link not in seen:
+                    seen.add(link)
+                    crawl_queue.append(link)
+
+def get_links(html):
+    webpage_regex = re.compile("<a[^>]+href=['\"](.*?)['\"]", re.IGNORECASE)
+    return webpage_regex.findall(html)
