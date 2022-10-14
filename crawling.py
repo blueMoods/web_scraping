@@ -45,7 +45,7 @@ def crawl_link(seed_url = "http://home.ustc.edu.cn/~baohd/", link_regex = ".*202
         depth = seen[url]
         html = download(url)
         # print html
-        if depth < max_depth:
+        if html != None and depth < max_depth:
             for link in get_links(html):
                 if re.match(link_regex, link):
                     # form absolute link
