@@ -34,23 +34,26 @@ def crawl_id(url = "https://wenku.baidu.com"):
 
 # ID 链接爬虫
 # 实测：
-def crawl_link(seed_url = "http://home.ustc.edu.cn/~baohd/", link_regex = ".*2021.*"):
+def crawl_link(seed_url = "http://home.ustc.edu.cn/~baohd/", link_regex = ".*2021.*", max_depth = 5):
     crawl_queue = [seed_url]
 
     # keep track which URL's have been seen before
-    seen = set(crawl_queue)
+    seen = {}
+    seen[seed_url] = 0
     while crawl_queue:
         url = crawl_queue.pop()
+        depth = seen[url]
         html = download(url)
         # print html
-        for link in get_links(html):
-            if re.match(link_regex, link):
-                # form absolute link
-                link = urlparse.urljoin(seed_url, link)
-                # check if have already seen this url
-                if link not in seen:
-                    seen.add(link)
-                    crawl_queue.append(link)
+        if depth < max_depth:
+            for link in get_links(html):
+                if re.match(link_regex, link):
+                    # form absolute link
+                    link = urlparse.urljoin(seed_url, link)
+                    # check if have already seen this url
+                    if link not in seen:
+                        seen[link] = depth + 1
+                        crawl_queue.append(link)
 
 def get_links(html):
     webpage_regex = re.compile("<a[^>]+href=['\"](.*?)['\"]", re.IGNORECASE)
